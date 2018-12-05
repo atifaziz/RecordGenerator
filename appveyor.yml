@@ -8,50 +8,32 @@ image: Visual Studio 2017
 version: 0.4.0-{branch}-build{build}
 skip_tags: true
 clone_depth: 1
-configuration:
-  - Debug
-  - Release
+configuration: Release
 init:
   - appveyor version
   - git config --global core.autocrlf true
   # checking if release branch
-  - ps: |
+  - pwsh: |
       # set release_branch
       $env:release_branch = $env:APPVEYOR_REPO_BRANCH.StartsWith("release")
       echo "release_branch='$env:release_branch'"
 
   # setting versions
-  - ps: |
+  - pwsh: |
       # extract x.y.z from version, join them and generate suffix in form {branch}-build00000 where branch has all non-character replaced with '-' and up to 10 chars
-      $major = $env:APPVEYOR_BUILD_VERSION -replace '^(\d*)\.(\d*)\.(\d*).*$', '$1'
-      $minor = $env:APPVEYOR_BUILD_VERSION -replace '^(\d*)\.(\d*)\.(\d*).*$', '$2'
-      $patch = $env:APPVEYOR_BUILD_VERSION -replace '^(\d*)\.(\d*)\.(\d*).*$', '$3'
-      $version_base = "$major.$minor.$patch"
+      $v = [SemanticVersion]::Parse($env:APPVEYOR_BUILD_VERSION)
+      $version_base = "$($v.Major).$($v.Minor).$($v.Patch)"
       $version_suffix = (($env:APPVEYOR_REPO_BRANCH -replace '[^\w\d]', '-')[0..9] -join "") + '-build' + "$env:APPVEYOR_BUILD_NUMBER".PadLeft(5, "0")
       # set versions
-      $env:ASM_VERSION = "$major.0.0.0"
+      $env:ASM_VERSION = "$($v.Major).0.0.0"
       $env:ASM_FILE_VERSION = "$version_base.$env:APPVEYOR_BUILD_NUMBER"
       $env:ASM_INFORMATIONAL_VERSION = "$version_base-$version_suffix"
       $env:PACKAGE_VERSION = if ($env:release_branch -eq $True) { "$version_base" } else { "$env:ASM_INFORMATIONAL_VERSION" }
       # print
-      echo "version_base='$version_base'"
-      echo "version_suffix='$version_suffix'"
-      echo "PACKAGE_VERSION='$env:PACKAGE_VERSION'"
-      echo "ASM_VERSION='$env:ASM_VERSION'"
-      echo "ASM_FILE_VERSION='$env:ASM_FILE_VERSION'"
-      echo "ASM_INFORMATIONAL_VERSION='$env:ASM_INFORMATIONAL_VERSION'"
-dotnet_csproj:
-  patch: true
-  file: '**\*.props'
-  version: '$(ASM_VERSION)'
-  assembly_version: '$(ASM_VERSION)'
-  package_version: '$(PACKAGE_VERSION)'
-  file_version: '$(ASM_FILE_VERSION)'
-  informational_version: '$(ASM_INFORMATIONAL_VERSION)'
-before_build:
-  - ps: Get-Content Directory.Build.props
+      echo "Versions: v='$v' base='$version_base' suffix='$version_suffix' pkg='$env:PACKAGE_VERSION' asm='$env:ASM_VERSION' file='$env:ASM_FILE_VERSION' info='$env:ASM_INFORMATIONAL_VERSION'"
+install:
   # check and install required .NET Core SDK version
-  - ps: |
+  - pwsh: |
       $requiredDotnetVersion = (Get-Content "global.json" | ConvertFrom-Json).sdk.version
       Write-Host "Required .NET Core SDK: v$requiredDotnetVersion"
       $compatibleDotnetVersion = $(dotnet --version 2> $null)
@@ -67,6 +49,16 @@ before_build:
       else {
           Write-Host "Using .NET Core SDK v$compatibleDotnetVersion"
       }
+dotnet_csproj:
+  patch: true
+  file: '**\*.props'
+  version: '$(ASM_VERSION)'
+  assembly_version: '$(ASM_VERSION)'
+  package_version: '$(PACKAGE_VERSION)'
+  file_version: '$(ASM_FILE_VERSION)'
+  informational_version: '$(ASM_INFORMATIONAL_VERSION)'
+before_build:
+  - ps: Get-Content Directory.Build.props
 build_script:
   - msbuild /v:m /t:Restore,Build /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
 notifications:
@@ -87,7 +79,6 @@ deploy:
     artifact: /.*\.nupkg/
     on:
       release_branch: false
-      configuration: Debug
 
   - provider: NuGet
     api_key:
@@ -96,4 +87,3 @@ deploy:
     artifact: /.*\.nupkg/
     on:
       release_branch: true
-      configuration: Release
