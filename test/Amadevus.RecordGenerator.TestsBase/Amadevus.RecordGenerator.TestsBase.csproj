@@ -1,8 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard1.6</TargetFramework>
+    <TargetFramework>netstandard1.5</TargetFramework>
     <IsPackable>false</IsPackable>
+    <PluginsDir>$(TargetDir)plugins/</PluginsDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,7 +17,19 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Amadevus.RecordGenerator.Attributes\Amadevus.RecordGenerator.Attributes.csproj" />
-    <ProjectReference Include="..\..\src\Amadevus.RecordGenerator.Generators\Amadevus.RecordGenerator.Generators.csproj" />
+    <PluginProjects Include="..\..\src\Amadevus.RecordGenerator.Generators\Amadevus.RecordGenerator.Generators.csproj" />
   </ItemGroup>
+
+  <Target Name="PublishGenerators" BeforeTargets="BeforeBuild">
+    <PropertyGroup>
+      <PluginsDir>$(TargetDir)plugins/</PluginsDir>
+    </PropertyGroup>
+    <MSBuild Projects="@(PluginProjects)"
+             Targets="Build;Publish"
+             Properties="PublishDir=$(PluginsDir)%(Filename);Configuration=$(Configuration)" />
+    <ItemGroup>
+      <GeneratorAssemblySearchPaths Include="$(PluginsDir)%(PluginProjects.Filename)" />
+    </ItemGroup>
+  </Target>
 
 </Project>
